@@ -3,7 +3,7 @@ import numpy as np
 import tkinter as tk
 from tkinter import filedialog, messagebox
 from PIL import Image, ImageTk
-import os  
+import os 
 
 def comparar_imagens_cv(path1, path2):
     RATIO_TEST_THRESHOLD = 0.85 
@@ -61,8 +61,42 @@ def comparar_imagens_cv(path1, path2):
 
             if num_inliers > MIN_INLIER_MATCHES:
                 print(f"\nResultado: MESMO local.")
-                draw_params = dict(matchColor=(0, 255, 0), singlePointColor=None, matchesMask=matchesMask, flags=2)
-                img_matches = cv2.drawMatches(img1_color, kp1, img2_color, kp2, good_matches, None, **draw_params)
+                
+                draw_params_f2 = dict(matchColor=(0, 255, 0), singlePointColor=None, matchesMask=matchesMask, flags=2)
+                img_matches_f2 = cv2.drawMatches(img1_color, kp1, img2_color, kp2, good_matches, None, **draw_params_f2)
+                
+                draw_params_f6 = dict(matchColor=(0, 255, 0), singlePointColor=None, matchesMask=matchesMask, flags=6) # flags=6
+                img_matches_f6 = cv2.drawMatches(img1_color, kp1, img2_color, kp2, good_matches, None, **draw_params_f6)
+                
+                # Filtrar os keypoints que são 'inliers'
+                inlier_kp1 = [kp1[m.queryIdx] for i, m in enumerate(good_matches) if matchesMask[i] == 1]
+                inlier_kp2 = [kp2[m.trainIdx] for i, m in enumerate(good_matches) if matchesMask[i] == 1]
+                
+                # Desenhar os keypoints nas imagens originais (em vermelho, 'rich')
+                img1_with_kp = cv2.drawKeypoints(img1_color, inlier_kp1, None, color=(0,0,255), flags=4)
+                img2_with_kp = cv2.drawKeypoints(img2_color, inlier_kp2, None, color=(0,0,255), flags=4)
+                
+                h1, w1 = img1_with_kp.shape[:2]
+                h2, w2 = img2_with_kp.shape[:2]
+                img_matches_no_lines = np.zeros((max(h1, h2), w1 + w2, 3), dtype="uint8")
+                img_matches_no_lines[0:h1, 0:w1] = img1_with_kp
+                img_matches_no_lines[0:h2, w1:w1+w2] = img2_with_kp
+
+                try:
+                    PASTA_SAIDA = 'resultados'
+                    if not os.path.exists(PASTA_SAIDA):
+                        os.makedirs(PASTA_SAIDA)
+                    
+                    cv2.imwrite(os.path.join(PASTA_SAIDA, 'resultado_linhas_simples (f2).png'), img_matches_f2)
+                    cv2.imwrite(os.path.join(PASTA_SAIDA, 'resultado_linhas_pontos (f6).png'), img_matches_f6)
+                    cv2.imwrite(os.path.join(PASTA_SAIDA, 'resultado_pontos_sem_linhas.png'), img_matches_no_lines)
+                    print(f"3 imagens de resultado salvas na pasta: {PASTA_SAIDA}")
+
+                except Exception as e:
+                    print(f"Erro ao salvar imagens: {e}")
+                
+                img_matches = img_matches_f2
+                
             else:
                 print(f"\nResultado: Locais DIFERENTES (poucos inliers).")
                 img_matches = cv2.drawMatches(img1_color, kp1, img2_color, kp2, [], None)
@@ -112,22 +146,7 @@ def iniciar_comparacao():
         lbl_status.config(text="Erro no processamento.", fg="red")
         return
 
-    try:
-        PASTA_SAIDA = 'resultados'
-        if not os.path.exists(PASTA_SAIDA):
-            os.makedirs(PASTA_SAIDA)
-        
-        ARQUIVO_SAIDA = os.path.join(PASTA_SAIDA, 'resultado_comparacao.png')
-        
-        cv2.imwrite(ARQUIVO_SAIDA, img_resultado_cv)
-        print(f"Imagem de resultado salva em: {ARQUIVO_SAIDA}")
-        
-        lbl_status.config(text=f"Comparação Concluída! Salvo em {ARQUIVO_SAIDA}", fg="green")
-
-    except Exception as e:
-        messagebox.showwarning("Erro ao Salvar", f"Não foi possível salvar a imagem em '{ARQUIVO_SAIDA}'.\nErro: {e}")
-        lbl_status.config(text="Comparação Concluída! (Falha ao salvar)", fg="orange")
-
+    lbl_status.config(text=f"Comparação Concluída! 3 arquivos salvos em /resultados/", fg="green")
     max_largura = 1200
     h, w = img_resultado_cv.shape[:2]
     if w > max_largura:
